@@ -1,0 +1,30 @@
+LUA_ONLINE="10.1.80.242 10.1.112.169"
+LUA_LOCAL="10.1.1.235"
+    
+LUA_IPS=$(LUA_ONLINE)
+	
+install:
+	@echo "are you really want to install? env is $(LUA_IPS) [yes|no]";
+	@read continue; \
+	if [ $$continue != "yes" ]; then \
+		echo "install quit"; exit 1; \
+	fi
+
+kugroup:
+	chown -R root.root kugroup
+	chown -R www.www kugroup/src/application/kugroup/log
+
+kg_local_dry: kugroup
+	./rsync local_dry kugroup/src/application/kugroup
+
+kg_local_install: kugroup install
+	./rsync local_install kugroup/src/application/kugroup
+
+kg_dry: kugroup
+	./rsync dry kugroup/src/application/kugroup /data1/ngx_lua/application/kugroup $(LUA_IPS) ' --exclude "*_test.lua" --exclude "*_gz.lua" --exclude "*.conf"'
+
+kg_diff: kugroup
+	./rsync diff kugroup/src/application/kugroup /data1/ngx_lua/application/kugroup $(LUA_IPS) ' --exclude "*_test.lua" --exclude "*_gz.lua" --exclude "*.conf"' .lua
+
+kg_install: kugroup install
+	./rsync install kugroup/src/application/kugroup /data1/ngx_lua/application/kugroup $(LUA_IPS) ' --exclude "*_test.lua" --exclude "*_gz.lua" --exclude "*.conf"'

@@ -1,0 +1,90 @@
+#!/bin/sh
+
+# usage:
+# rsync dry[install] sour des EXCLUDE
+
+EXCLUDE=' --exclude ".svn" --exclude "logs/*" --exclude "*.swp" --exclude "lua-releng" --exclude "*.markdown" --exclude "svg/*" --exclude "*.bak" --exclude "*.git*" --exclude "nginx" '
+EXCLUDE="$EXCLUDE$5"
+
+USER="admin"
+
+sour=$2
+des=$3
+IPS=$4
+suffix=$6
+
+case $1 in
+
+"dry")
+	for ip in $IPS; do
+		echo "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:/home/admin/tanjinhua/$des/ $EXCLUDE"
+		eval "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:/home/admin/tanjinhua/$des/ $EXCLUDE"
+		break
+	done
+	;;
+
+"diff")
+	for ip in $IPS; do
+		diff_sh="rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:/home/admin/tanjinhua/$des/ $EXCLUDE | grep $suffix"
+		for file in `eval $diff_sh`; do
+			echo ""
+			echo ""
+			echo "start from file: $file"
+			echo ""
+
+			ssh -p 32200 $USER@$ip " if [ ! -f /home/admin/tanjinhua/$des/$file ]; then echo ''; else cat /home/admin/tanjinhua/$des/$file; fi" | diff - ${sour}/$file
+
+		done
+		break
+	done
+	;;
+
+"install")
+	for ip in $IPS; do
+		echo "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:/home/admin/tanjinhua/$des/ $EXCLUDE"
+		eval "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:/home/admin/tanjinhua/$des/ $EXCLUDE"
+	done
+	;;
+
+"standard_dry")
+	for ip in $IPS; do
+		echo "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE"
+		eval "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE"
+		break
+	done
+	;;
+
+"standard_diff")
+	for ip in $IPS; do
+		diff_sh="rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE | grep $suffix"
+		for file in `eval $diff_sh`; do
+			echo ""
+			echo ""
+			echo "start from file: $file"
+			echo ""
+
+			ssh -p 32200 $USER@$ip " if [ ! -f $des/$file ]; then echo ''; else cat $des/$file; fi" | diff - ${sour}/$file
+
+		done
+		break
+	done
+	;;
+
+"standard_install")
+	for ip in $IPS; do
+		echo "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:$des/ $EXCLUDE"
+		eval "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:$des/ $EXCLUDE"
+	done
+	;;
+
+*)
+	echo "invald options"
+	exit
+	;;
+esac
+
+
+
+echo ""
+echo "*** work in server group: $IPS ***"
+echo ""

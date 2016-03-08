@@ -1,0 +1,95 @@
+#!/bin/sh
+
+# usage:
+# rsync dry[install] sour des EXCLUDE
+
+EXCLUDE=' --exclude ".svn" --exclude "log/*" --exclude "*.swp" --exclude "lua-releng" --exclude "*.markdown" --exclude "svg/*" --exclude "*.bak" --exclude "*.git*" --exclude "nginx" '
+EXCLUDE="$EXCLUDE$5"
+
+USER="admin"
+
+IPS=$4
+sour=$2
+des=$3
+suffix=$6
+
+GZIPS="10.1.18.123 10.1.18.124"
+
+case $1 in
+"local_dry")
+	echo "rsync -vacn $sour/ /data1/ngx_lua/application/kugroup/ $EXCLUDE"
+	eval "rsync -vacn $sour/ /data1/ngx_lua/application/kugroup/ $EXCLUDE"
+	;;
+
+"local_install")
+	echo "rsync -vac $sour/ /data1/ngx_lua/application/kugroup/ $EXCLUDE"
+	eval "rsync -vac $sour/ /data1/ngx_lua/application/kugroup/ $EXCLUDE"
+	;;
+
+"dry")
+	for ip in $IPS; do
+		echo "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE"
+		eval "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE"
+		break
+	done
+	;;
+
+"diff")
+	for ip in $IPS; do
+		diff_sh="rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE | grep $suffix"
+		for file in `eval $diff_sh`; do
+			echo ""
+			echo ""
+			echo "start from file: $file"
+			echo ""
+
+			ssh -p 32200 $USER@$ip " if [ ! -f $des/$file ]; then echo ''; else cat $des/$file; fi" | diff - ${sour}/$file
+
+		done
+		break
+	done
+	;;
+
+"install")
+		for ip in $IPS; do
+			echo "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:$des/ $EXCLUDE"
+			eval "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:$des/ $EXCLUDE"
+		done
+	;;
+
+*)
+	echo "invald options"
+	exit
+	;;
+esac
+
+
+if false
+then
+case $1 in
+"local_install")
+	/usr/local/openresty/nginx/sbin/nginx -t
+	kill -HUP `cat /usr/local/openresty/nginx/nginx.pid`
+	;;
+
+"install")
+	for ip in $IPS; do
+		date
+		ssh $USER@$ip -p 32200 '/usr/local/openresty/nginx/sbin/nginx -t; kill -HUP `cat /usr/local/openresty/nginx/nginx.pid`'
+		sleep 30
+		#ssh $USER@$ip -p 32200 '/usr/local/openresty/nginx/sbin/nginx'
+	done
+
+	sleep 30
+	for ip in $IPS; do
+		date
+		ssh $USER@$ip -p 32200 "ps aux | grep nginx | grep shut | grep -v grep | awk '{print \$2}' | xargs kill -9 "
+	done
+	;;
+esac
+fi
+
+
+echo ""
+echo "*** work in server group: $IPS ***"
+echo ""

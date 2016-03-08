@@ -1,0 +1,105 @@
+#!/bin/sh
+
+# usage:
+# rsync dry[install] sour des EXCLUDE
+
+EXCLUDE=' --exclude ".svn" --exclude "logs/*" --exclude "*.swp" --exclude "lua-releng" --exclude "*.markdown" --exclude "svg/*" --exclude "*.bak" --exclude "*.git*" --exclude "nginx" '
+EXCLUDE="$EXCLUDE$5"
+
+USER="admin"
+
+IPS=$4
+sour=$2
+des=$3
+suffix=$6
+
+GZIPS="10.1.18.123 10.1.18.124"
+
+case $1 in
+"local_dry")
+	echo "rsync -vacn $sour /data1/ngx_lua/ $EXCLUDE"
+	eval "rsync -vacn $sour /data1/ngx_lua/ $EXCLUDE"
+	;;
+
+"local_install")
+	echo "rsync -vac $sour /data1/ngx_lua/ $EXCLUDE"
+	eval "rsync -vac $sour /data1/ngx_lua/ $EXCLUDE"
+	;;
+
+"dry")
+	for ip in $IPS; do
+		echo "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE"
+		eval "rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE"
+		break
+	done
+	;;
+
+"diff")
+	for ip in $IPS; do
+		diff_sh="rsync -e 'ssh -p 32200' -vacn $sour/ $USER@$ip:$des/ $EXCLUDE | grep $suffix"
+		for file in `eval $diff_sh`; do
+			echo ""
+			echo ""
+			echo "start from file: $file"
+			echo ""
+
+			ssh -p 32200 $USER@$ip " if [ ! -f $des/$file ]; then echo ''; else cat $des/$file; fi" | diff - ${sour}/$file
+
+		done
+		break
+	done
+	;;
+
+"install")
+		for ip in $IPS; do
+			echo "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:$des/ $EXCLUDE"
+			eval "rsync -e 'ssh -p 32200' -vac $sour/ $USER@$ip:$des/ $EXCLUDE"
+			echo "echo $GZIPS | grep $ip -c"
+			c=`echo $GZIPS | grep $ip -c`
+			echo $c
+			if [ $c = "1" ]; then
+				ZNFILES=`rsync -e 'ssh -p 32200' -vacn $sour $USER@$ip:/data1/ngx_lua/ | grep "_gz.lua"`
+				for file in $ZNFILES; do
+					#echo $file
+					scp -P 32200 ${sour%/*}/$file $USER@$ip:/data1/ngx_lua/${file/_gz/};
+				done
+			fi
+		done
+	;;
+
+*)
+	echo "invald options"
+	exit
+	;;
+esac
+
+
+if false
+then
+case $1 in
+"local_install")
+	/usr/local/openresty/nginx/sbin/nginx -t
+	kill -HUP `cat /usr/local/openresty/nginx/nginx.pid`
+	;;
+
+"install")
+	for ip in $IPS; do
+		date
+		ssh $USER@$ip -p 32200 '/usr/local/openresty/nginx/sbin/nginx -t; kill -HUP `cat /usr/local/openresty/nginx/nginx.pid`'
+		sleep 30
+		#ssh $USER@$ip -p 32200 '/usr/local/openresty/nginx/sbin/nginx'
+	done
+
+	sleep 30
+	for ip in $IPS; do
+		date
+		ssh $USER@$ip -p 32200 "ps aux | grep nginx | grep shut | grep -v grep | awk '{print \$2}' | xargs kill -9 "
+	done
+	;;
+esac
+fi
+
+
+echo ""
+echo "*** work in server group: $IPS ***"
+echo ""
